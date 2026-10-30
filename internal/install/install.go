@@ -136,6 +136,8 @@ func Uninstall(settingsPath, destDir string) (bool, error) {
 
 func readSettings(path string) (map[string]json.RawMessage, error) {
 	data, err := os.ReadFile(path)
+	// Windows PowerShell and some editors save JSON with a UTF-8 byte order mark.
+	data = bytes.TrimPrefix(data, []byte("ï»¿"))
 	if errors.Is(err, os.ErrNotExist) || (err == nil && len(bytes.TrimSpace(data)) == 0) {
 		return map[string]json.RawMessage{}, nil
 	}

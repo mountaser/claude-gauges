@@ -239,3 +239,15 @@ func TestInstallTwiceIsFine(t *testing.T) {
 		t.Fatalf("second install failed: %v", err)
 	}
 }
+
+func TestInstallAcceptsByteOrderMark(t *testing.T) {
+	o, _ := setup(t)
+	writeFile(t, o.SettingsPath, "ï»¿"+`{"theme":"dark"}`)
+	if _, err := Install(o); err != nil {
+		t.Fatalf("a settings file with a byte order mark must be accepted: %v", err)
+	}
+	m := readJSON(t, o.SettingsPath)
+	if m["theme"] != "dark" || m["statusLine"] == nil {
+		t.Errorf("settings = %v", m)
+	}
+}
