@@ -41,7 +41,6 @@ type Plan struct {
 	Done       int       `json:"done"`
 	Failed     int       `json:"failed"`
 	ElapsedSec float64   `json:"elapsedSec"`
-	Tokens     int64     `json:"tokens"`
 	Diff       *DiffStat `json:"diff"`
 }
 

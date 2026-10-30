@@ -14,7 +14,7 @@ This extends `2026-10-30-claude-gauges-design.md`.
 screentether │ main │ Opus 5.5 · high │ ctx ◑ 420k/1M
 5h ◑ 42% ↺ 2h14m │ 7d ◕ 69% ↺ 3d 6h │ cache ● 3m12s
 agy-foreman ●●◐○○ 2/5 │ #4 Render the two lines › editing render.go
-5h ● 94% ↺ 3h12m │ 7d ◕ 70% ↺ 4d 0h │ plan 10m51s │ tok 424k │ diff 2 files +217
+5h ● 94% ↺ 3h12m │ 7d ◕ 70% ↺ 4d 0h │ plan 10m51s │ diff 2 files +217
 ```
 
 ### Line 3
@@ -50,11 +50,10 @@ The verb is cyan and the target is bold. `<target>` is left out when the activit
 
 ### Line 4
 
-`5h … │ 7d … │ plan <time> │ tok <n> │ diff …`, left to right:
+`5h … │ 7d … │ plan <time> │ diff …`, left to right:
 
 - **Limits:** `5h` and `7d` from `quota.fiveHour` and `quota.weekly`, each drawn exactly like the Claude limits on line 2: a pie for the remaining percentage, the rounded percentage in bold, and `↺ <time to reset>` computed from `resetAt`. A limit that is missing is left out, and so are both when `quota` is missing.
 - **plan:** `plan <time>` with `plan.elapsedSec` formatted like the cache countdown (`10m51s`, `1h05m`).
-- **tok:** `tok <n>` with `plan.tokens` formatted like context tokens (`424k`, `1.2M`, `0`).
 - **diff:** `diff <n> file(s) +<added>` in bold, with green added lines and, when above 0, a red `−<deleted>`. Without a diff, or with 0 files, `diff –`.
 
 The pie and its colors follow the same thresholds as the Claude limits.
@@ -64,7 +63,7 @@ The pie and its colors follow the same thresholds as the Claude limits.
 The width is the `COLUMNS` environment variable when it is a positive number. Without it nothing is shortened.
 
 - **Line 3** with exactly one job: when it is wider than the terminal, the title is shortened with `…` by exactly the excess, as long as the title keeps at least 8 characters.
-- **Line 4**: when too wide, drop in this order and stop as soon as it fits: the reset countdowns of both limits, then `tok`. Nothing else is dropped.
+- **Line 4**: when too wide, drop the reset countdowns of both limits. Nothing else is dropped.
 
 Widths are counted in characters.
 

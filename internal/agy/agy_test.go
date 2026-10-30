@@ -37,7 +37,7 @@ func TestParseValid(t *testing.T) {
 		t.Errorf("header = %+v", s)
 	}
 	p := s.Plan
-	if p.Done != 2 || len(p.Steps) != 5 || p.Steps[2] != "running" || p.Tokens != 424000 ||
+	if p.Done != 2 || len(p.Steps) != 5 || p.Steps[2] != "running" ||
 		p.ElapsedSec != 651 || p.Diff == nil || p.Diff.Files != 2 || p.Diff.Added != 217 {
 		t.Errorf("plan = %+v", p)
 	}

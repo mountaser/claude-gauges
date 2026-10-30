@@ -187,7 +187,7 @@ func agyDiff(d *agy.DiffStat, p painter) string {
 	return out
 }
 
-func agyLineBWith(s *agy.Snapshot, now time.Time, p painter, countdown, tok bool) string {
+func agyLineBWith(s *agy.Snapshot, now time.Time, p painter, countdown bool) string {
 	var segs []string
 	if q := s.Quota; q != nil {
 		if q.FiveHour != nil {
@@ -199,21 +199,16 @@ func agyLineBWith(s *agy.Snapshot, now time.Time, p painter, countdown, tok bool
 	}
 	elapsed := time.Duration(s.Plan.ElapsedSec * float64(time.Second))
 	segs = append(segs, p.c(dim, "plan")+" "+p.c(bold, gauge.CacheCountdown(elapsed)))
-	if tok {
-		segs = append(segs, p.c(dim, "tok")+" "+p.c(bold, gauge.Tokens(s.Plan.Tokens)))
-	}
 	segs = append(segs, agyDiff(s.Plan.Diff, p))
 	return strings.Join(segs, p.c(dim, " │ "))
 }
 
 func agyLineB(s *agy.Snapshot, now time.Time, columns int, color bool) string {
-	variants := [][2]bool{{true, true}, {false, true}, {false, false}}
-	for _, v := range variants {
-		plain := agyLineBWith(s, now, painter{false}, v[0], v[1])
+	for _, countdown := range []bool{true, false} {
+		plain := agyLineBWith(s, now, painter{false}, countdown)
 		if columns <= 0 || utf8.RuneCountInString(plain) <= columns {
-			return agyLineBWith(s, now, painter{color}, v[0], v[1])
+			return agyLineBWith(s, now, painter{color}, countdown)
 		}
 	}
-	last := variants[len(variants)-1]
-	return agyLineBWith(s, now, painter{color}, last[0], last[1])
+	return agyLineBWith(s, now, painter{color}, false)
 }

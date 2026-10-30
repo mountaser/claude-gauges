@@ -24,7 +24,6 @@ func typical() *agy.Snapshot {
 			Steps:      []string{"passed", "passed", "running", "pending", "pending"},
 			Done:       2,
 			ElapsedSec: 651,
-			Tokens:     424000,
 			Diff:       &agy.DiffStat{Files: 2, Added: 217},
 		},
 		Jobs: []agy.Job{{
@@ -45,7 +44,7 @@ func plainLines(s *agy.Snapshot, columns int) (string, string) {
 func TestAgyTypical(t *testing.T) {
 	a, b := plainLines(typical(), 0)
 	wantA := "agy-foreman ●●◐○○ 2/5 │ #4 Render the two lines › editing render.go"
-	wantB := "5h ● 94% ↺ 3h12m │ 7d ◕ 70% ↺ 4d 0h │ plan 10m51s │ tok 424k │ diff 2 files +217"
+	wantB := "5h ● 94% ↺ 3h12m │ 7d ◕ 70% ↺ 4d 0h │ plan 10m51s │ diff 2 files +217"
 	if a != wantA {
 		t.Errorf("line 3:\n%s\nwant:\n%s", a, wantA)
 	}
@@ -136,7 +135,7 @@ func TestAgyDiffAndMissingParts(t *testing.T) {
 
 	s := typical()
 	s.Quota = nil
-	if _, b := plainLines(s, 0); b != "plan 10m51s │ tok 424k │ diff 2 files +217" {
+	if _, b := plainLines(s, 0); b != "plan 10m51s │ diff 2 files +217" {
 		t.Errorf("without quota: %q", b)
 	}
 
@@ -153,21 +152,20 @@ func TestAgyDiffAndMissingParts(t *testing.T) {
 	}
 
 	s = typical()
-	s.Plan.ElapsedSec, s.Plan.Tokens = 4, 0
-	if _, b := plainLines(s, 0); !strings.Contains(b, "plan 0m04s │ tok 0 │") {
+	s.Plan.ElapsedSec = 4
+	if _, b := plainLines(s, 0); !strings.Contains(b, "plan 0m04s │ diff") {
 		t.Errorf("fresh plan: %q", b)
 	}
 }
 
 func TestAgyFitsNarrowTerminals(t *testing.T) {
-	fullB := "5h ● 94% ↺ 3h12m │ 7d ◕ 70% ↺ 4d 0h │ plan 10m51s │ tok 424k │ diff 2 files +217"
-	noCountdown := "5h ● 94% │ 7d ◕ 70% │ plan 10m51s │ tok 424k │ diff 2 files +217"
-	noTok := "5h ● 94% │ 7d ◕ 70% │ plan 10m51s │ diff 2 files +217"
+	fullB := "5h ● 94% ↺ 3h12m │ 7d ◕ 70% ↺ 4d 0h │ plan 10m51s │ diff 2 files +217"
+	noCountdown := "5h ● 94% │ 7d ◕ 70% │ plan 10m51s │ diff 2 files +217"
 	cases := []struct {
 		columns int
 		want    string
 	}{
-		{0, fullB}, {80, fullB}, {79, noCountdown}, {64, noCountdown}, {63, noTok}, {40, noTok},
+		{0, fullB}, {69, fullB}, {68, noCountdown}, {53, noCountdown}, {40, noCountdown},
 	}
 	for _, c := range cases {
 		if _, b := plainLines(typical(), c.columns); b != c.want {
