@@ -10,15 +10,15 @@ import (
 func Pie(f float64) string {
 	switch {
 	case f < 0.125:
-		return "\u25cb"
+		return "○"
 	case f < 0.375:
-		return "\u25d4"
+		return "◔"
 	case f < 0.625:
-		return "\u25d1"
+		return "◑"
 	case f < 0.875:
-		return "\u25d5"
+		return "◕"
 	default:
-		return "\u25cf"
+		return "●"
 	}
 }
 
