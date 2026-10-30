@@ -21,7 +21,7 @@ screentether │ master │ Opus 5.5 · high │ ctx ◑ 420k/1M
 |---|---|---|
 | Project | Repository folder name. In a linked git worktree, the main repository's folder name. Outside git, the base name of the current directory. | `.git` files, `workspace.current_dir`, `cwd` |
 | Branch | Current branch, or the first 7 characters of the commit when HEAD is detached. In a worktree, the worktree folder name follows in parentheses unless the branch name and the folder name contain one another. Omitted outside git. | `.git/HEAD` |
-| Model | Family and version taken from `model.id`, for example `claude-opus-5-5` gives `Opus 5.5`. A trailing context suffix such as `[1m]` and a date segment are ignored. Falls back to `model.display_name`. | `model.id`, `model.display_name` |
+| Model | Family and version taken from `model.id`, for example `claude-opus-5-5` gives `Opus 5.5`. The id may carry a provider prefix (`us.anthropic.claude-sonnet-4-5-...`); suffixes such as `[1m]`, `@20250805`, `-v1:0` and date segments are ignored. Falls back to `model.display_name` when the id has no `claude-` part. | `model.id`, `model.display_name` |
 | Effort | `· <level>` after the model name. Omitted when `effort` is absent. | `effort.level` |
 | Context | `ctx <pie> <used>/<size>`, for example `ctx ◑ 420k/1M`. Counts up from 0. | `context_window.total_input_tokens`, `context_window.context_window_size` |
 
@@ -57,14 +57,15 @@ One character chosen from five by fraction filled `f`:
 - Cache: green while more than a minute remains, yellow in the last minute, orange when cold.
 - Effort: `low` dim, `medium` cyan, `high` magenta, `xhigh` orange, `max` red.
 - Labels and separators are dim, project is magenta, branch is green, model is blue.
-- No escape sequences are written when the `NO_COLOR` environment variable is set.
+- No escape sequences are written when the `NO_COLOR` environment variable is set to a non-empty value.
 
 ### Number formats
 
 - Tokens: below 1,000 as is; from 1,000 to the million mark as thousands rounded to the nearest integer plus `k` (`420k`); a whole number of millions as `1M`; otherwise one decimal plus `M` (`1.5M`).
 - Reset countdown: `<h>h<mm>m` below one day (`2h14m`, `0h26m`), `<d>d <h>h` from one day up (`3d 6h`). Past times show `0h00m`.
 - Cache countdown: `<m>m<ss>s` below one hour (`3m12s`), `<h>h<mm>m` from one hour up.
-- Remaining percentage is rounded to a whole number and clamped to 0 through 100.
+- Remaining percentage is clamped to 0 through 100 and rounded to a whole number first; the pie, the color and the number shown all use the rounded value.
+- Numeric input fields may arrive as numbers or numeric strings. A value that cannot be read counts as absent and never fails the whole parse.
 
 ### Missing data
 
@@ -96,11 +97,13 @@ Rendering always exits with status 0. Input that is not valid JSON prints `claud
 
 Flags: `--force`, `--settings <path>` (default `~/.claude/settings.json`), `--dest <dir>` (default `~/.claude`), `--refresh <seconds>` (default 10).
 
-1. Create the destination folder and copy the running executable into it as `claude-gauges` (`claude-gauges.exe` on Windows). Copying is skipped when the executable already is the destination file.
-2. Read `settings.json`. A missing or empty file counts as `{}`. Invalid JSON stops the install and leaves the file untouched.
-3. If a `statusLine` entry exists whose command is not this program's command, stop with an error unless `--force` was given. With `--force`, save the old entry to `claude-gauges.previous.json` in the destination folder first.
+1. Read `settings.json`. A missing or empty file counts as `{}`. Invalid JSON stops the install and leaves the file untouched.
+2. If a `statusLine` entry exists whose command is not this program's command, stop with an error unless `--force` was given. Nothing has been copied or changed at this point. With `--force`, save the old entry to `claude-gauges.previous.json` in the destination folder.
+3. Make `--settings` and `--dest` absolute, create the destination folder, and copy the running executable into it as `claude-gauges` (`claude-gauges.exe` on Windows). Copying is skipped when the executable already is the destination file. On Windows a running copy is renamed to `.old` so it can be replaced.
 4. Copy the existing `settings.json` to `settings.json.bak`.
-5. Set `statusLine` to `{"type": "command", "command": "<path>", "refreshInterval": <seconds>}` and keep every other key. The file is written to a temporary file and renamed into place. Key order in the file may change.
+5. Set `statusLine` to `{"type": "command", "command": "<path>", "refreshInterval": <seconds>}` and keep every other key. A symlinked `settings.json` is written through to its target and file permissions are kept. Text such as `&&` in other entries is not escaped. The file is written to a temporary file and renamed into place. Key order in the file may change.
+
+`--refresh` must be at least 1.
 
 The path in `command` uses forward slashes on every platform and is wrapped in double quotes when it contains a space.
 

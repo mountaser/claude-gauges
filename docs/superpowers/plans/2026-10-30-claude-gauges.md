@@ -14,11 +14,13 @@
 - Module path: `github.com/mountaser/claude-gauges`; `go 1.22` in `go.mod`.
 - Standard library only. No network access. Never start `git` or any other process.
 - Rendering exits with status 0 in every case, including invalid input.
-- Output is UTF-8. No escape sequences when `NO_COLOR` is set.
+- Output is UTF-8. No escape sequences when `NO_COLOR` is set to a non-empty value.
+- Numeric input fields are decoded leniently (number or numeric string); a value that cannot be read counts as absent and never fails the whole parse.
 - Pie glyphs: `○` `◔` `◑` `◕` `●`, thresholds 0.125 / 0.375 / 0.625 / 0.875.
 - Limits show remaining percentage (full = untouched). Context shows tokens used and counts up.
 - `install` writes `{"type":"command","command":"<path>","refreshInterval":10}` with a forward-slash path, quoted when it contains a space.
 - License: MIT. `NOTICE.md` credits moo-statusline for the worktree approach and reproduces its notice.
+- Run every command in Git Bash (the plan uses `&&`, `$(...)` and `GOOS=...` prefixes, which Windows PowerShell 5.1 does not accept).
 - Commit after every task. Do not push.
 
 ## File Structure
@@ -59,10 +61,11 @@ internal/install/install_test.go
   - `type Model struct { ID, DisplayName string }`
   - `type Workspace struct { CurrentDir string }`
   - `type Effort struct { Level string }`
-  - `type ContextWindow struct { TotalInputTokens, Size int64 }`
-  - `type Window struct { UsedPercentage float64; ResetsAt int64 }`
+  - `type Num float64` decodes a JSON number or a numeric string; anything else (null, text, object) decodes as 0 without an error
+  - `type ContextWindow struct { TotalInputTokens, Size Num }`
+  - `type Window struct { UsedPercentage, ResetsAt Num }`
   - `type RateLimits struct { FiveHour, SevenDay *Window }`
-  - `type PromptCache struct { Warm, CachingObserved bool; TTL string; ExpiresAt, RecacheTokensIfCold int64 }`
+  - `type PromptCache struct { Warm, CachingObserved bool; ExpiresAt, RecacheTokensIfCold Num }`
   - `func Parse(r io.Reader) (*Session, error)`
   - `func (s *Session) Dir() string` returns `Workspace.CurrentDir`, else `Cwd`, else `""`.
 
@@ -161,7 +164,7 @@ const full = `{
     "five_hour": {"used_percentage": 23.5, "resets_at": 1738425600},
     "seven_day": {"used_percentage": 41.2, "resets_at": 1738857600}
   },
-  "prompt_cache": {"warm": true, "caching_observed": true, "ttl": "1h",
+  "prompt_cache": {"warm": true, "caching_observed": true,
     "expires_at": 1738429200, "recache_tokens_if_cold": 45000}
 }`
 
@@ -187,7 +190,7 @@ func TestParseFull(t *testing.T) {
 		t.Errorf("seven_day = %+v", s.RateLimits.SevenDay)
 	}
 	c := s.PromptCache
-	if c == nil || !c.Warm || !c.CachingObserved || c.TTL != "1h" ||
+	if c == nil || !c.Warm || !c.CachingObserved ||
 		c.ExpiresAt != 1738429200 || c.RecacheTokensIfCold != 45000 {
 		t.Errorf("prompt_cache = %+v", c)
 	}
@@ -201,6 +204,31 @@ func TestParseEmptyObject(t *testing.T) {
 	if s.Effort != nil || s.PromptCache != nil ||
 		s.RateLimits.FiveHour != nil || s.RateLimits.SevenDay != nil {
 		t.Errorf("optional fields should be nil: %+v", s)
+	}
+}
+
+func TestParseLenientNumbers(t *testing.T) {
+	in := `{
+	  "context_window": {"total_input_tokens": "123", "context_window_size": 1e6},
+	  "rate_limits": {"five_hour": {"used_percentage": "12.5", "resets_at": 1738425600.0},
+	                  "seven_day": {"used_percentage": null, "resets_at": "2026-01-01T00:00:00Z"}},
+	  "prompt_cache": {"expires_at": {"unexpected": true}}
+	}`
+	s, err := Parse(strings.NewReader(in))
+	if err != nil {
+		t.Fatalf("lenient parse failed: %v", err)
+	}
+	if s.ContextWindow.TotalInputTokens != 123 || s.ContextWindow.Size != 1000000 {
+		t.Errorf("context = %+v", s.ContextWindow)
+	}
+	if f := s.RateLimits.FiveHour; f.UsedPercentage != 12.5 || f.ResetsAt != 1738425600 {
+		t.Errorf("five_hour = %+v", f)
+	}
+	if d := s.RateLimits.SevenDay; d.UsedPercentage != 0 || d.ResetsAt != 0 {
+		t.Errorf("seven_day should read as zero: %+v", d)
+	}
+	if s.PromptCache.ExpiresAt != 0 {
+		t.Errorf("prompt_cache = %+v", s.PromptCache)
 	}
 }
 
@@ -243,7 +271,30 @@ package session
 import (
 	"encoding/json"
 	"io"
+	"strconv"
+	"strings"
 )
+
+// Num is a number that tolerates the shapes Claude Code might send: a JSON
+// number or a numeric string. Anything else reads as 0 and is not an error,
+// so one odd field never breaks the whole status line.
+type Num float64
+
+func (n *Num) UnmarshalJSON(b []byte) error {
+	var v any
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	switch x := v.(type) {
+	case float64:
+		*n = Num(x)
+	case string:
+		if f, err := strconv.ParseFloat(strings.TrimSpace(x), 64); err == nil {
+			*n = Num(f)
+		}
+	}
+	return nil
+}
 
 type Model struct {
 	ID          string `json:"id"`
@@ -259,13 +310,13 @@ type Effort struct {
 }
 
 type ContextWindow struct {
-	TotalInputTokens int64 `json:"total_input_tokens"`
-	Size             int64 `json:"context_window_size"`
+	TotalInputTokens Num `json:"total_input_tokens"`
+	Size             Num `json:"context_window_size"`
 }
 
 type Window struct {
-	UsedPercentage float64 `json:"used_percentage"`
-	ResetsAt       int64   `json:"resets_at"`
+	UsedPercentage Num `json:"used_percentage"`
+	ResetsAt       Num `json:"resets_at"`
 }
 
 type RateLimits struct {
@@ -274,11 +325,10 @@ type RateLimits struct {
 }
 
 type PromptCache struct {
-	Warm                bool   `json:"warm"`
-	CachingObserved     bool   `json:"caching_observed"`
-	TTL                 string `json:"ttl"`
-	ExpiresAt           int64  `json:"expires_at"`
-	RecacheTokensIfCold int64  `json:"recache_tokens_if_cold"`
+	Warm                bool `json:"warm"`
+	CachingObserved     bool `json:"caching_observed"`
+	ExpiresAt           Num  `json:"expires_at"`
+	RecacheTokensIfCold Num  `json:"recache_tokens_if_cold"`
 }
 
 type Session struct {
@@ -670,7 +720,12 @@ func Read(dir string) (Info, bool) {
 	info := Info{Repo: filepath.Base(root), Branch: branch, Folder: filepath.Base(root)}
 	if common != "" {
 		info.Worktree = true
-		info.Repo = filepath.Base(filepath.Dir(filepath.Clean(common)))
+		cb := filepath.Base(filepath.Clean(common))
+		if cb == ".git" {
+			info.Repo = filepath.Base(filepath.Dir(filepath.Clean(common)))
+		} else {
+			info.Repo = strings.TrimSuffix(cb, ".git") // bare repository
+		}
 	}
 	return info, true
 }
@@ -905,8 +960,10 @@ func TestModelName(t *testing.T) {
 		{"claude-sonnet-4-5-20250929", "Sonnet", "Sonnet 4.5"},
 		{"claude-3-5-sonnet-20241022", "Sonnet", "Sonnet 3.5"},
 		{"claude-opus-5-5[1m]", "Opus", "Opus 5.5"},
+		{"us.anthropic.claude-sonnet-4-5-20250929-v1:0", "Sonnet", "Sonnet 4.5"},
+		{"claude-opus-4-1@20250805", "Opus", "Opus 4.1"},
 		{"", "Opus", "Opus"},
-		{"gibberish", "Custom", "Gibberish"},
+		{"gibberish", "Custom", "Custom"},
 	}
 	for _, c := range cases {
 		if got := ModelName(c.id, c.display); got != c.want {
@@ -930,14 +987,21 @@ package render
 import "strings"
 
 // ModelName turns a model id such as "claude-opus-5-5" into "Opus 5.5".
-// Context suffixes like "[1m]" and date segments are ignored. It falls back
-// to display when no family can be found in the id.
+// It finds "claude-" anywhere in the id (so provider prefixes like
+// "us.anthropic." are skipped), ignores suffixes such as "[1m]", "@20250805",
+// "-v1:0" and date segments, and returns display when the id has no
+// "claude-" part.
 func ModelName(id, display string) string {
-	core := id
-	if i := strings.Index(core, "["); i >= 0 {
-		core = core[:i]
+	i := strings.Index(id, "claude-")
+	if i < 0 {
+		return display
 	}
-	core = strings.TrimPrefix(core, "claude-")
+	core := id[i+len("claude-"):]
+	for _, cut := range []string{"[", "@", ":"} {
+		if j := strings.Index(core, cut); j >= 0 {
+			core = core[:j]
+		}
+	}
 
 	family := ""
 	var nums []string
@@ -1084,11 +1148,11 @@ func effortColor(level string) string {
 
 func contextSegment(s *session.Session, p painter) string {
 	label := p.c(dim, "ctx")
-	size := s.ContextWindow.Size
+	size := int64(s.ContextWindow.Size)
 	if size <= 0 {
 		return label + " –"
 	}
-	used := s.ContextWindow.TotalInputTokens
+	used := int64(s.ContextWindow.TotalInputTokens)
 	f := float64(used) / float64(size)
 	col := green
 	switch {
@@ -1106,7 +1170,8 @@ func limitSegment(name string, w *session.Window, now time.Time, p painter) stri
 	if w == nil {
 		return label + " –"
 	}
-	rem := math.Max(0, math.Min(100, 100-w.UsedPercentage))
+	// Round first so the pie, the color and the number shown always agree.
+	rem := math.Round(math.Max(0, math.Min(100, 100-float64(w.UsedPercentage))))
 	col := red
 	switch {
 	case rem > 50:
@@ -1116,7 +1181,7 @@ func limitSegment(name string, w *session.Window, now time.Time, p painter) stri
 	}
 	out := fmt.Sprintf("%s %s %s", label, p.c(col, gauge.Pie(rem/100)), p.c(bold, fmt.Sprintf("%.0f%%", rem)))
 	if w.ResetsAt > 0 {
-		left := time.Unix(w.ResetsAt, 0).Sub(now)
+		left := time.Unix(int64(w.ResetsAt), 0).Sub(now)
 		out += " " + p.c(dim, "↺ "+gauge.Countdown(left))
 	}
 	return out
@@ -1127,7 +1192,7 @@ func cacheSegment(c *session.PromptCache, now time.Time, p painter) string {
 	if c == nil || !c.CachingObserved {
 		return label + " –"
 	}
-	left := time.Unix(c.ExpiresAt, 0).Sub(now)
+	left := time.Unix(int64(c.ExpiresAt), 0).Sub(now)
 	if c.Warm && left > 0 {
 		if left < time.Minute {
 			return label + " " + p.c(yellow, "◐ "+gauge.CacheCountdown(left))
@@ -1136,7 +1201,7 @@ func cacheSegment(c *session.PromptCache, now time.Time, p painter) string {
 	}
 	cold := "▲ cold"
 	if c.RecacheTokensIfCold > 0 {
-		cold += " · +" + gauge.Tokens(c.RecacheTokensIfCold) + " tokens to reload"
+		cold += " · +" + gauge.Tokens(int64(c.RecacheTokensIfCold)) + " tokens to reload"
 	}
 	return p.c(orange, cold)
 }
@@ -1285,10 +1350,9 @@ func renderCmd(in io.Reader, out io.Writer) int {
 		fmt.Fprintln(out, "claude-gauges: could not read session data")
 		return 0
 	}
-	_, noColor := os.LookupEnv("NO_COLOR")
 	fmt.Fprintln(out, render.Render(s, render.Options{
 		Now:   time.Now(),
-		Color: !noColor,
+		Color: os.Getenv("NO_COLOR") == "",
 		Git:   gitinfo.Read,
 	}))
 	return 0
@@ -1388,7 +1452,7 @@ func TestInstallKeepsOtherSettings(t *testing.T) {
 	if sl["type"] != "command" || sl["command"] != cmd || sl["refreshInterval"] != float64(10) {
 		t.Errorf("statusLine = %v", sl)
 	}
-	if !strings.HasSuffix(cmd, "/"+ExeName()) || strings.Contains(cmd, `\`) {
+	if !strings.HasSuffix(strings.Trim(cmd, `"`), "/"+ExeName()) || strings.Contains(cmd, `\`) {
 		t.Errorf("command should use forward slashes and end with the program name: %s", cmd)
 	}
 	bak, err := os.ReadFile(o.SettingsPath + ".bak")
@@ -1508,6 +1572,56 @@ func TestInstallRejectsInvalidJSON(t *testing.T) {
 	}
 }
 
+func TestInstallKeepsHookTextReadable(t *testing.T) {
+	o, _ := setup(t)
+	writeFile(t, o.SettingsPath, `{"hooks":{"Stop":[{"command":"a && b > out"}]}}`)
+	if _, err := Install(o); err != nil {
+		t.Fatal(err)
+	}
+	data, _ := os.ReadFile(o.SettingsPath)
+	if !strings.Contains(string(data), "a && b > out") {
+		t.Errorf("hook text was escaped:\n%s", data)
+	}
+}
+
+func TestInstallMakesRelativeDestAbsolute(t *testing.T) {
+	o, dir := setup(t)
+	old, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(old) })
+	o.DestDir = "rel-bin"
+	cmd, err := Install(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !filepath.IsAbs(strings.Trim(cmd, `"`)) {
+		t.Errorf("command should be absolute: %s", cmd)
+	}
+}
+
+func TestInstallWritesThroughSymlink(t *testing.T) {
+	o, dir := setup(t)
+	real := filepath.Join(dir, "real-settings.json")
+	writeFile(t, real, `{"theme":"dark"}`)
+	if err := os.Symlink(real, o.SettingsPath); err != nil {
+		t.Skipf("symlinks not available: %v", err)
+	}
+	if _, err := Install(o); err != nil {
+		t.Fatal(err)
+	}
+	if st, err := os.Lstat(o.SettingsPath); err != nil || st.Mode()&os.ModeSymlink == 0 {
+		t.Error("settings.json should still be a symlink")
+	}
+	if readJSON(t, real)["statusLine"] == nil {
+		t.Error("the symlink target was not updated")
+	}
+}
+
 func TestInstallTwiceIsFine(t *testing.T) {
 	o, _ := setup(t)
 	if _, err := Install(o); err != nil {
@@ -1562,6 +1676,15 @@ func ExeName() string {
 	return "claude-gauges"
 }
 
+// absPath makes p absolute so the command written to settings.json works
+// from any working directory.
+func absPath(p string) string {
+	if abs, err := filepath.Abs(p); err == nil {
+		return abs
+	}
+	return p
+}
+
 func commandFor(dest string) string {
 	p := filepath.ToSlash(dest)
 	if strings.Contains(p, " ") {
@@ -1580,6 +1703,7 @@ func isOurs(raw json.RawMessage, cmd string) bool {
 // Install copies the program into o.DestDir and sets statusLine in settings.json.
 // It returns the command string it wrote.
 func Install(o Options) (string, error) {
+	o.SettingsPath, o.DestDir = absPath(o.SettingsPath), absPath(o.DestDir)
 	settings, err := readSettings(o.SettingsPath)
 	if err != nil {
 		return "", err
@@ -1626,6 +1750,7 @@ func Install(o Options) (string, error) {
 // the statusLine key when there was none. It reports whether the installed
 // program could be deleted (it cannot while it is running on Windows).
 func Uninstall(settingsPath, destDir string) (bool, error) {
+	settingsPath, destDir = absPath(settingsPath), absPath(destDir)
 	settings, err := readSettings(settingsPath)
 	if err != nil {
 		return false, err
@@ -1648,7 +1773,9 @@ func Uninstall(settingsPath, destDir string) (bool, error) {
 		return false, err
 	}
 	os.Remove(prevPath)
-	return os.Remove(dest) == nil, nil
+	os.Remove(dest + ".old")
+	err = os.Remove(dest)
+	return err == nil || errors.Is(err, os.ErrNotExist), nil
 }
 
 func readSettings(path string) (map[string]json.RawMessage, error) {
@@ -1670,16 +1797,27 @@ func readSettings(path string) (map[string]json.RawMessage, error) {
 }
 
 func writeSettings(path string, m map[string]json.RawMessage) error {
-	data, err := json.MarshalIndent(m, "", "  ")
-	if err != nil {
+	// Keep hook commands readable: do not escape &, < and > as \u0026 etc.
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(m); err != nil {
 		return err
 	}
-	data = append(data, '\n')
+	// Write through a symlink to the real file and keep its permissions.
+	if target, err := filepath.EvalSymlinks(path); err == nil {
+		path = target
+	}
+	mode := os.FileMode(0o644)
+	if st, err := os.Stat(path); err == nil {
+		mode = st.Mode().Perm()
+	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+	if err := os.WriteFile(tmp, buf.Bytes(), mode); err != nil {
 		return err
 	}
 	return os.Rename(tmp, path)
@@ -1718,11 +1856,23 @@ func copyExe(src, dest string) error {
 		return err
 	}
 	if err := out.Close(); err != nil {
+		os.Remove(tmp)
 		return err
 	}
 	if err := os.Rename(tmp, dest); err != nil {
-		os.Remove(tmp)
-		return fmt.Errorf("could not replace %s (is Claude Code running it? close your Claude Code sessions and try again): %w", dest, err)
+		// Windows cannot overwrite a running program, but it can rename it away.
+		old := dest + ".old"
+		os.Remove(old)
+		if os.Rename(dest, old) != nil {
+			os.Remove(tmp)
+			return fmt.Errorf("could not replace %s (close your Claude Code sessions and try again): %w", dest, err)
+		}
+		if err2 := os.Rename(tmp, dest); err2 != nil {
+			os.Rename(old, dest)
+			os.Remove(tmp)
+			return fmt.Errorf("could not replace %s: %w", dest, err2)
+		}
+		os.Remove(old) // best effort; fails while the old copy is still running
 	}
 	return nil
 }
@@ -1749,7 +1899,7 @@ git commit -m "feat: install and uninstall by editing settings.json"
 - Modify: `main_test.go` (append one test)
 
 **Interfaces:**
-- Consumes: `install.Install`, `install.Uninstall`, `install.Options`, `install.ExeName` (Task 6).
+- Consumes: `install.Install`, `install.Uninstall`, `install.Options` (Task 6).
 - Produces: `func installCmd(args []string, out, errw io.Writer) int` and `func uninstallCmd(args []string, out, errw io.Writer) int`. Both accept `--settings <path>` and `--dest <dir>`; `installCmd` also accepts `--force` and `--refresh <seconds>` (default 10). Defaults are `~/.claude/settings.json` and `~/.claude`.
 
 - [ ] **Step 1: Append the failing test to `main_test.go`**
@@ -1783,6 +1933,14 @@ func TestInstallAndUninstallCommands(t *testing.T) {
 	data, _ = os.ReadFile(settings)
 	if strings.Contains(string(data), "statusLine") || !strings.Contains(string(data), "dark") {
 		t.Errorf("settings after uninstall: %s", data)
+	}
+}
+
+func TestInstallRejectsBadRefresh(t *testing.T) {
+	var out, errw bytes.Buffer
+	code := run([]string{"install", "--refresh", "0"}, strings.NewReader(""), &out, &errw)
+	if code != 2 || !strings.Contains(errw.String(), "--refresh") {
+		t.Errorf("code %d, stderr %q", code, errw.String())
 	}
 }
 
@@ -1856,6 +2014,10 @@ func installCmd(args []string, out, errw io.Writer) int {
 	dest := fs.String("dest", "", "folder to install the program into (default ~/.claude)")
 	refresh := fs.Int("refresh", 10, "seconds between status line refreshes")
 	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *refresh < 1 {
+		fmt.Fprintln(errw, "claude-gauges: --refresh must be at least 1 second")
 		return 2
 	}
 	sp, dp, err := defaultPaths(*settings, *dest)
@@ -2004,7 +2166,7 @@ Expected: no output; `claude-gauges.exe` exists
 Run (bash):
 ```bash
 now=$(date +%s)
-printf '{"workspace":{"current_dir":"%s"},"model":{"id":"claude-opus-5-5"},"effort":{"level":"high"},"context_window":{"total_input_tokens":420000,"context_window_size":1000000},"rate_limits":{"five_hour":{"used_percentage":58,"resets_at":%d},"seven_day":{"used_percentage":31,"resets_at":%d}},"prompt_cache":{"warm":true,"caching_observed":true,"expires_at":%d,"recache_tokens_if_cold":461120}}' "$PWD" $((now+8040)) $((now+281000)) $((now+192)) | ./claude-gauges.exe
+printf '{"workspace":{"current_dir":"%s"},"model":{"id":"claude-opus-5-5"},"effort":{"level":"high"},"context_window":{"total_input_tokens":420000,"context_window_size":1000000},"rate_limits":{"five_hour":{"used_percentage":58,"resets_at":%d},"seven_day":{"used_percentage":31,"resets_at":%d}},"prompt_cache":{"warm":true,"caching_observed":true,"expires_at":%d,"recache_tokens_if_cold":461120}}' "$(pwd -W)" $((now+8040)) $((now+281000)) $((now+192)) | ./claude-gauges.exe
 ```
 Expected: two lines like
 ```
@@ -2047,6 +2209,8 @@ git commit -m "docs: README with usage, install and build"
 ```
 
 - [ ] **Step 8: Install for real and check in Claude Code**
+
+This edits the real `~/.claude/settings.json`. Ask the user to confirm before running it.
 
 Run: `./claude-gauges.exe install` (add `--force` only if it refuses because another status line exists; the old one is saved and `claude-gauges uninstall` restores it).
 Then restart Claude Code and confirm the two lines appear, the countdowns tick about every 10 seconds, and the pies look right in the terminal font. If a glyph renders as an empty box, the terminal font lacks the Geometric Shapes block; switch the terminal font.
