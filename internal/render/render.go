@@ -21,15 +21,17 @@ type Options struct {
 }
 
 const (
-	green   = "32"
-	yellow  = "33"
-	red     = "31"
-	blue    = "34"
-	magenta = "35"
-	cyan    = "36"
-	dim     = "90"
+	// 24-bit colors chosen to stay readable on dark terminal themes. The basic
+	// 16-color codes map to dark blues and purples on many themes.
+	green   = "38;2;126;231;135"
+	yellow  = "38;2;242;204;96"
+	red     = "38;2;255;123;114"
+	blue    = "38;2;121;192;255"
+	magenta = "38;2;210;168;255"
+	cyan    = "38;2;86;212;221"
+	dim     = "38;2;139;148;158"
 	bold    = "1"
-	orange  = "38;5;208"
+	orange  = "38;2;255;166;87"
 )
 
 type painter struct{ on bool }

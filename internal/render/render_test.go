@@ -164,7 +164,7 @@ func TestRenderColor(t *testing.T) {
 		m["rate_limits"].(map[string]any)["five_hour"].(map[string]any)["used_percentage"] = 92.0
 	})
 	colored := Render(s, Options{Now: now, Color: true})
-	if !strings.Contains(colored, "\x1b[31m○\x1b[0m") {
+	if !strings.Contains(colored, "\x1b["+red+"m○\x1b[0m") {
 		t.Errorf("expected a red empty pie in %q", colored)
 	}
 	if strings.Contains(plain(s), "\x1b") {
