@@ -29,7 +29,7 @@ This copies the program to `~/.claude/` and sets `statusLine` in `~/.claude/sett
 
 If a status line is already configured, `install` stops. Run `claude-gauges install --force` to replace it; the old one is saved and `uninstall` restores it.
 
-Options: `--settings <path>`, `--dest <dir>`, `--refresh <seconds>` (default 10).
+Options: `--settings <path>`, `--dest <dir>`, `--refresh <seconds>` (default 1).
 
 ## Uninstall
 

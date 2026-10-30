@@ -7,8 +7,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strconv"
 	"time"
 
+	"github.com/mountaser/claude-gauges/internal/agy"
 	"github.com/mountaser/claude-gauges/internal/gitinfo"
 	"github.com/mountaser/claude-gauges/internal/install"
 	"github.com/mountaser/claude-gauges/internal/render"
@@ -58,10 +61,18 @@ func renderCmd(in io.Reader, out io.Writer) int {
 		fmt.Fprintln(out, "claude-gauges: could not read session data")
 		return 0
 	}
+	var snap *agy.Snapshot
+	home, _ := os.UserHomeDir()
+	if sn, ok := agy.Read(agy.DefaultPath(runtime.GOOS, home, os.Getenv), time.Now()); ok {
+		snap = sn
+	}
+	cols, _ := strconv.Atoi(os.Getenv("COLUMNS"))
 	fmt.Fprintln(out, render.Render(s, render.Options{
-		Now:   time.Now(),
-		Color: os.Getenv("NO_COLOR") == "",
-		Git:   gitinfo.Read,
+		Now:     time.Now(),
+		Color:   os.Getenv("NO_COLOR") == "",
+		Git:     gitinfo.Read,
+		Agy:     snap,
+		Columns: cols,
 	}))
 	return 0
 }
@@ -86,7 +97,7 @@ func installCmd(args []string, out, errw io.Writer) int {
 	force := fs.Bool("force", false, "replace an existing status line (it is saved for uninstall)")
 	settings := fs.String("settings", "", "settings.json to edit (default ~/.claude/settings.json)")
 	dest := fs.String("dest", "", "folder to install the program into (default ~/.claude)")
-	refresh := fs.Int("refresh", 10, "seconds between status line refreshes")
+	refresh := fs.Int("refresh", 1, "seconds between status line refreshes")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}

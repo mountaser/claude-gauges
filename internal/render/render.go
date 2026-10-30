@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mountaser/claude-gauges/internal/agy"
 	"github.com/mountaser/claude-gauges/internal/gauge"
 	"github.com/mountaser/claude-gauges/internal/gitinfo"
 	"github.com/mountaser/claude-gauges/internal/session"
@@ -18,6 +19,10 @@ type Options struct {
 	Now   time.Time
 	Color bool
 	Git   func(dir string) (gitinfo.Info, bool)
+	// Agy is agy-foreman's delegation snapshot; nil leaves the two extra lines out.
+	Agy *agy.Snapshot
+	// Columns is the terminal width, or 0 when unknown.
+	Columns int
 }
 
 const (
@@ -55,7 +60,12 @@ func Render(s *session.Session, opt Options) string {
 		limitSegment("7d", s.RateLimits.SevenDay, opt.Now, p),
 		cacheSegment(s.PromptCache, opt.Now, p),
 	}
-	return strings.Join(l1, sep) + "\n" + strings.Join(l2, sep)
+	out := strings.Join(l1, sep) + "\n" + strings.Join(l2, sep)
+	if opt.Agy != nil {
+		a, b := AgyLines(opt.Agy, opt.Now, opt.Columns, opt.Color)
+		out += "\n" + a + "\n" + b
+	}
+	return out
 }
 
 func projectSegments(s *session.Session, opt Options, p painter) []string {

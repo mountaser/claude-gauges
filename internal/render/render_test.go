@@ -192,3 +192,18 @@ func TestModelName(t *testing.T) {
 		}
 	}
 }
+
+func TestRenderAppendsDelegationLines(t *testing.T) {
+	s := build(t, nil)
+	out := Render(s, Options{Now: now, Agy: typical()})
+	lines := strings.Split(out, "\n")
+	if len(lines) != 4 {
+		t.Fatalf("expected four lines, got %d:\n%s", len(lines), out)
+	}
+	if !strings.HasPrefix(lines[2], "agy-foreman ●●◐○○ 2/5") || !strings.HasPrefix(lines[3], "5h ● 94%") {
+		t.Errorf("delegation lines:\n%s\n%s", lines[2], lines[3])
+	}
+	if plainOnly := plain(s); strings.Count(plainOnly, "\n") != 1 {
+		t.Errorf("without a snapshot there must be two lines:\n%s", plainOnly)
+	}
+}
