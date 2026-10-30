@@ -242,7 +242,7 @@ func TestInstallTwiceIsFine(t *testing.T) {
 
 func TestInstallAcceptsByteOrderMark(t *testing.T) {
 	o, _ := setup(t)
-	writeFile(t, o.SettingsPath, "ï»¿"+`{"theme":"dark"}`)
+	writeFile(t, o.SettingsPath, "\xef\xbb\xbf"+`{"theme":"dark"}`)
 	if _, err := Install(o); err != nil {
 		t.Fatalf("a settings file with a byte order mark must be accepted: %v", err)
 	}
