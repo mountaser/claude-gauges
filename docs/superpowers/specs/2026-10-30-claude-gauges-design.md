@@ -95,7 +95,7 @@ Rendering always exits with status 0. Input that is not valid JSON prints `claud
 
 ### install
 
-Flags: `--force`, `--settings <path>` (default `~/.claude/settings.json`), `--dest <dir>` (default `~/.claude`), `--refresh <seconds>` (default 10).
+Flags: `--force`, `--settings <path>` (default `~/.claude/settings.json`), `--dest <dir>` (default `~/.claude`), `--refresh <seconds>` (default 1).
 
 1. Read `settings.json`. A missing or empty file counts as `{}`. Invalid JSON stops the install and leaves the file untouched.
 2. If a `statusLine` entry exists whose command is not this program's command, stop with an error unless `--force` was given. Nothing has been copied or changed at this point. With `--force`, save the old entry to `claude-gauges.previous.json` in the destination folder.
