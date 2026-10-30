@@ -1,0 +1,17 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;700&display=swap" rel="stylesheet"><style>html,body{width:1280px;height:640px;background:#0c0e12}
+*{box-sizing:border-box;margin:0}
+.pie{display:inline-block;width:.8em;height:.8em;border-radius:50%;border:.1em solid var(--c);
+  background:conic-gradient(var(--c) 0 var(--p),transparent 0);vertical-align:-.1em;margin:0 .12em}
+.s{color:#5d6571}.d{color:#8b949e}.w{font-weight:700;color:#fff}
+.lines{font:400 21px/1.75 'Geist Mono',ui-monospace,Consolas,monospace;color:#e6edf3;white-space:pre}
+
+body{position:relative;overflow:hidden;background:#0c0e12;font-family:'Geist',system-ui,sans-serif;color:#eceae4}
+.brand{position:absolute;left:84px;top:62px;display:flex;align-items:center;gap:16px;font-weight:600;font-size:25px;letter-spacing:-.02em}
+h1{position:absolute;left:84px;top:146px;font-weight:600;font-size:76px;line-height:1.02;letter-spacing:-.045em}
+h1 span{color:#7ee787}
+.sub{position:absolute;left:84px;top:318px;width:600px;font-size:21px;line-height:1.5;color:#858c97}
+.band{position:absolute;left:0;right:0;top:424px;bottom:0;background:#0f1217;border-top:1px solid #1b2028}
+.band .lines{position:absolute;left:84px;top:34px;font-size:29px;line-height:1.72}
+.url{position:absolute;right:84px;bottom:26px;font:400 15px/1 'Geist Mono',monospace;color:#555d68}
+</style></head><body><svg style="position:absolute;right:-250px;top:-130px" width="760" height="760" viewBox="0 0 760 760"><circle cx="380" cy="380" r="300" fill="none" stroke="#12161c" stroke-width="74"/><circle cx="380" cy="380" r="300" fill="none" stroke="rgba(126,231,135,.17)" stroke-width="74" stroke-dasharray="1414 1885" transform="rotate(-90 380 380)"/></svg><div class="brand"><svg width="34" height="34" viewBox="78 78 356 356"><circle cx="256" cy="256" r="150" fill="none" stroke="#7ee787" stroke-width="34"/><path d="M256 256 L256 150 A106 106 0 1 1 150.0 256.0 Z" fill="#7ee787"/></svg>claude-gauges</div><h1>See your limits<br><span>before you hit them.</span></h1><p class="sub">A status line for Claude Code. Usage limits, context and cache timer in one small Go program.</p><div class="band"><div class="lines"><span style="color:#d2a8ff">claude-gauges</span><span class="s"> │ </span><span style="color:#7ee787">main</span><span class="s"> │ </span><span style="color:#79c0ff">Opus 5.5</span> <span style="color:#d2a8ff">· high</span><span class="s"> │ </span><span class="d">ctx</span> <span class="pie" style="--p:50%;--c:#7ee787"></span> <span class="w">420k</span><span class="d">/1M</span>
+<span class="d">5h</span> <span class="pie" style="--p:50%;--c:#f2cc60"></span> <span class="w">42%</span> <span class="d">↺ 2h14m</span><span class="s"> │ </span><span class="d">7d</span> <span class="pie" style="--p:75%;--c:#7ee787"></span> <span class="w">69%</span> <span class="d">↺ 3d 6h</span><span class="s"> │ </span><span class="d">cache</span> <span class="pie" style="--p:100%;--c:#7ee787"></span> <span style="color:#7ee787">3m12s</span></div><div class="url">github.com/mountaser/claude-gauges</div></div></body></html>
