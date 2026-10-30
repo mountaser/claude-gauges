@@ -11,10 +11,12 @@ $ProgressPreference = 'SilentlyContinue'
 
 $repo = 'mountaser/claude-gauges'
 
-$arch = switch ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture) {
-    'X64'   { 'amd64' }
-    'Arm64' { 'arm64' }
-    default { throw "claude-gauges install: unsupported CPU $_" }
+# PROCESSOR_ARCHITEW6432 holds the real CPU when a 32-bit PowerShell runs on 64-bit Windows.
+$cpu = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
+$arch = switch ($cpu) {
+    'AMD64' { 'amd64' }
+    'ARM64' { 'arm64' }
+    default { throw "claude-gauges install: unsupported CPU '$cpu'" }
 }
 $asset = "claude-gauges_windows_$arch.exe"
 
